@@ -15,13 +15,13 @@ namespace FattyScanner.Core.Events
         public ScanProgressArgs(double progress, long scannedSize)
         {
             ProgressValue = progress;
-            ScannedSize = ByteSizeFormatter.SizeSuffix(scannedSize);
+            ScannedSize = scannedSize;
         }
 
         /// <summary>
         /// 当前扫描进度，0到1的浮点数
         /// </summary>
         public double ProgressValue { get; private set; }
-        public string ScannedSize { get; private set; }
+        public long ScannedSize { get; private set; }
     }
 }

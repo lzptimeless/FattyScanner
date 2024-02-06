@@ -1,0 +1,8 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:local="clr-namespace:FattyScanner.Converters">
+    <local:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+    <local:ByteFormatConverter x:Key="ByteFormatConverter"/>
+    <local:PercentageFormatConverter x:Key="PercentageFormatConverter"/>
+    <local:EqualToVisibilityConverter x:Key="EqualToVisibilityConverter"/>
+</ResourceDictionary>

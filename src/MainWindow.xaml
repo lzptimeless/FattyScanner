@@ -8,6 +8,82 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignData Type=vm:MainViewModel, IsDesignTimeCreatable=False}"
         Title="FATTY SCANNER" Height="450" Width="800">
+    <Window.Resources>
+        <Style x:Key="ScannedResultTreeViewItemStyle" TargetType="{x:Type TreeViewItem}">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="HorizontalContentAlignment" Value="{Binding Path=HorizontalContentAlignment, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}" />
+            <Setter Property="VerticalContentAlignment" Value="{Binding Path=VerticalContentAlignment, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TreeViewItem}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition />
+                            </Grid.RowDefinitions>
+                            <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                                <ContentPresenter x:Name="PART_Header" ContentSource="Header" 
+                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                            </Border>
+                            <ItemsPresenter x:Name="ItemsHost" Grid.Row="1" Visibility="Collapsed"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="HasItems" Value="True">
+                                <Setter TargetName="ItemsHost" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="ItemsPanel">
+                <Setter.Value>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="ScannedResultTreeViewStyle" TargetType="{x:Type TreeView}">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource ScannedResultTreeViewItemStyle}"/>
+            <Setter Property="ItemsPanel">
+                <Setter.Value>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TreeView}">
+                        <Border>
+                            <ScrollViewer Focusable="False" CanContentScroll="False">
+                                <ItemsPresenter />
+                            </ScrollViewer>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <HierarchicalDataTemplate x:Key="ScannedFileSysInfoDataTemplate" 
+                                  DataType="{x:Type vm:ScannedFileSysInfoViewModel}"
+                                  ItemsSource="{Binding Items, Mode=OneWay}">
+            <Border Background="Green" Width="{Binding DisplayWidth, Mode=OneWay}" MinHeight="30" Margin="1">
+                <Border.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Copy Path" Command="{Binding CopyFullPathCommand, Mode=OneWay}"/>
+                        <MenuItem Header="Expand" Command="{Binding ExpandCommand, Mode=OneWay}"/>
+                    </ContextMenu>
+                </Border.ContextMenu>
+            </Border>
+        </HierarchicalDataTemplate>
+    </Window.Resources>
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -21,18 +97,28 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <Button MinWidth="90" Content="FOLDER"/>
-            <TextBox Grid.Column="1" Margin="5,0"/>
-            <Button Grid.Column="2" MinWidth="90" Content="SCAN"/>
-            <Button Grid.Column="3" MinWidth="90" Margin="5,0,0,0" Content="STOP"/>
+            <Button MinWidth="90" Content="FOLDER" Command="{Binding BrowseScanPathCommand, Mode=OneWay}"/>
+            <TextBox Grid.Column="1" Margin="5,0" Text="{Binding ScanPath, Mode=TwoWay}"/>
+            <Button Grid.Column="2" MinWidth="90" Content="SCAN" Command="{Binding ScanCommand, Mode=OneWay}"/>
+            <Button Grid.Column="3" MinWidth="90" Margin="5,0,0,0" Content="STOP" Command="{Binding StopCommand, Mode=OneWay}"/>
         </Grid>
         <StackPanel Grid.Row="1" Margin="0,5,0,0">
-            <ProgressBar Height="5"/>
-            <TextBlock Margin="0,5,0,0">
-                <Run Text="SCANNED SIZE:"/>
-                <Run/>
-            </TextBlock>
+            <ProgressBar Height="5" Minimum="0" Maximum="100"  Value="{Binding ScanProgressValue, Mode=OneWay}"/>
+            <Grid Margin="0,5,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock>
+                    <Run Text="SCANNED SIZE:"/>
+                    <Run Text="{Binding ScannedSize, Mode=OneWay, Converter={StaticResource ByteFormatConverter}}"/>
+                </TextBlock>
+                <TextBlock Grid.Column="1" Text="{Binding ScanState, Mode=OneWay}"/>
+            </Grid>
         </StackPanel>
-        <ListBox Grid.Row="2" Margin="0,10,0,0"></ListBox>
+        <TreeView Grid.Row="2" Margin="0,10,0,0" ItemsSource="{Binding Items, Mode=OneWay}"
+                  Style="{StaticResource ScannedResultTreeViewStyle}"
+                  ItemTemplate="{StaticResource ScannedFileSysInfoDataTemplate}">
+        </TreeView>
     </Grid>
 </Window>

@@ -121,6 +121,7 @@ namespace FattyScanner.Core
                     // 全盘扫描使用文件大小来估算进度会准确一些
                     _scanProgressEventer.Start(scanDirInfo);
                     InnerStartScan(scanDirInfo, _scannedRoot, 5, 1, cts);
+                    _scannedRoot?.SetName(scanDirInfo.FullName);
                     stopwatch.Stop();
                     _logger.LogInformation("Scan elapsed:{elapsed}, path:{scanPath}", stopwatch.Elapsed, scanPath);
                     _scanProgressEventer.Complete(); // 内部会触发事件，不能lock
@@ -129,9 +130,9 @@ namespace FattyScanner.Core
                     {
                         ScanState = ScanStates.Completed;
                     }
-                    RaiseScanStateChanged(ScanStates.Completed);
 
                     GC.Collect(); // 扫描过程中会产生大量废弃的对象，这里做一次GC可以让内存占用明显减少
+                    RaiseScanStateChanged(ScanStates.Completed);
                 }
                 catch (Exception ex)
                 {
