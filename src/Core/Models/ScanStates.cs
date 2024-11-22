@@ -20,6 +20,14 @@ namespace FattyScanner.Core.Models
         /// </summary>
         Scanning,
         /// <summary>
+        /// 扫描失败
+        /// </summary>
+        ScanFailed,
+        /// <summary>
+        /// 扫描被停止，可以获取扫描结果
+        /// </summary>
+        Stopped,
+        /// <summary>
         /// 扫描完成，可以获取扫描结果
         /// </summary>
         Completed,

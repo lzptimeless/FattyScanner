@@ -56,10 +56,10 @@ namespace FattyScanner.ViewModels
             set { SetProperty(ref _scanState, value); }
         }
 
-        public ScannedFileSysInfoViewModel? _root;
-        public ObservableCollection<ScannedFileSysInfoViewModel>? Items
+        public FileSysNodeViewModel? _root;
+        public ObservableCollection<FileSysNodeViewModel>? Subs
         {
-            get { return _root?.Items; }
+            get { return _root?.Subs; }
         }
         #endregion
 
@@ -157,40 +157,41 @@ namespace FattyScanner.ViewModels
             base.OnActivated();
 
             ScanState = _scanModule.ScanState;
-            _scanModule.ScanStateChanged += _scanModule_ScanStateChanged;
-            _scanModule.ScanProgressChanged += _scanModule_ScanProgressChanged;
+            _scanModule.ScanStateChanged += OnScanStateChanged;
+            _scanModule.ScanProgressChanged += OnScanProgressChanged;
         }
 
         protected override void OnDeactivated()
         {
-            _scanModule.ScanStateChanged -= _scanModule_ScanStateChanged;
-            _scanModule.ScanProgressChanged -= _scanModule_ScanProgressChanged;
+            _scanModule.ScanStateChanged -= OnScanStateChanged;
+            _scanModule.ScanProgressChanged -= OnScanProgressChanged;
 
             base.OnDeactivated();
         }
 
-        private void _scanModule_ScanStateChanged(object? sender, Core.Events.ScanStateChangedArgs e)
+        private void OnScanStateChanged(object? sender, Core.Events.ScanStateChangedArgs e)
         {
             App.Current.Dispatcher.BeginInvoke(() =>
             {
                 ScanState = e.State;
-                if (e.State == ScanStates.Completed)
+                if (e.State == ScanStates.Completed || e.State == ScanStates.Stopped)
                 {
-                    var scannedFileSysInfo = _scanModule.GetTree(null, 5, 0.01);
-                    if (scannedFileSysInfo != null)
+                    var scanResult = _scanModule.ScanResult;
+                    if (scanResult != null)
                     {
-                        _root = new ScannedFileSysInfoViewModel(null, scannedFileSysInfo, _scanModule, App.Current.MainWindow.ActualWidth - 40);
-                        OnPropertyChanged(nameof(Items));
+                        _root = new FileSysNodeViewModel(scanResult, scanResult.Size, _scanModule);
+                        _root.Expand();
+                        OnPropertyChanged(nameof(Subs));
                     }
                 }
             });
         }
 
-        private void _scanModule_ScanProgressChanged(object? sender, Core.Events.ScanProgressArgs e)
+        private void OnScanProgressChanged(object? sender, Core.Events.ScanProgressArgs e)
         {
             App.Current.Dispatcher.BeginInvoke(() =>
             {
-                ScanProgressValue = Math.Max(0, Math.Min(100, e.ProgressValue * 100));
+                ScanProgressValue = e.ProgressValue * 100;
                 ScannedSize = e.ScannedSize;
             });
         }

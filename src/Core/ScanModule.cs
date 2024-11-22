@@ -6,147 +6,113 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
+using System.Reflection;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
+using System.Web;
 
 namespace FattyScanner.Core
 {
+    /// <summary>
+    /// 扫描功能模块
+    /// </summary>
     public class ScanModule : IScanModule
     {
         #region fields
-        /// <summary>
-        /// 内部状态锁
-        /// </summary>
         private readonly object _lock = new object();
         private readonly ILogger _logger;
         /// <summary>
-        /// 管理扫描进度事件触发频率
+        /// 文件扫描进度预测器
         /// </summary>
-        private readonly ScanProgressEventer _scanProgressEventer;
+        private readonly ScanProgressPredictor _progressPredictor;
         /// <summary>
-        /// 扫描结果的根目录节点
+        /// 用于停止扫描的Token
         /// </summary>
-        private ScannedFileSysInfoCompressed? _scannedRoot;
         private CancellationTokenSource? _scanCTS;
         #endregion
 
         public ScanModule(ILoggerFactory loggerFactory)
         {
             _logger = loggerFactory.CreateLogger(typeof(ScanModule));
-            _scanProgressEventer = new ScanProgressEventer(0.0001, 300);
-            _scanProgressEventer.ProgressChanged += _scanProgressEventer_ProgressChanged;
+            _progressPredictor = new ScanProgressPredictor();
+            _progressPredictor.ScanProgressChanged += OnScanProgressChanged;
         }
 
         #region properties
         public ScanStates ScanState { get; private set; }
         public string? ScanPath { get; private set; }
+        public FileSysNode? ScanResult { get; private set; }
         #endregion
 
         #region events
         public event EventHandler<ScanProgressArgs>? ScanProgressChanged;
-        private void RaiseScanProgressChanged(ScanProgressArgs e)
-        {
-            try
-            {
-                ScanProgressChanged?.Invoke(this, e);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "RaiseScanProgressChanged failed, progress: {@e}", e);
-            }
-        }
         public event EventHandler<ScanStateChangedArgs>? ScanStateChanged;
-        private void RaiseScanStateChanged(ScanStates state)
-        {
-            try
-            {
-                ScanStateChanged?.Invoke(this, new ScanStateChangedArgs(state));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "RaiseScanStateChanged failed, state: {state}", state);
-            }
-        }
         #endregion
 
         #region public methods
-        public List<string> GetDisks()
+        public async void StartScan(string path)
         {
-            var diskList = new List<string>();
-            foreach (var item in DriveInfo.GetDrives())
-            {
-                diskList.Add(item.Name);
-            }
-            return diskList;
-        }
-
-        public void StartScan(string scanPath)
-        {
-            if (string.IsNullOrWhiteSpace(scanPath)) throw new ArgumentException("Can not be null or empty", nameof(scanPath));
-            if (!Path.IsPathRooted(scanPath)) throw new ArgumentException("Must be a rooted path", nameof(scanPath));
-
-            var scanDirInfo = new DirectoryInfo(scanPath);
-            var oldState = ScanStates.Idle;
-            CancellationTokenSource cts;
             lock (_lock)
             {
-                if (ScanState == ScanStates.Scanning) throw new ApplicationException("Already in scanning state.");
-                if (ScanState == ScanStates.Cleaning) throw new ApplicationException("In cleaning state.");
+                if (ScanState == ScanStates.Scanning || ScanState == ScanStates.Cleaning)
+                {
+                    throw new InvalidOperationException($"State error, state: {ScanState}");
+                }
 
-                oldState = ScanState;
                 ScanState = ScanStates.Scanning;
-                ScanPath = scanPath;
-                _scanProgressEventer.Reset();
-                _scannedRoot?.CleanSubs();
-                _scannedRoot = new ScannedFileSysInfoCompressed
-                {
-                    IsDir = true,
-                    IsFileFilled = true
-                };
-                _scannedRoot.SetName(scanDirInfo.Name);
-                _scanCTS?.Dispose();
-                _scanCTS = new CancellationTokenSource();
-                cts = _scanCTS;
             }
-            RaiseScanStateChanged(ScanStates.Scanning);
+            _logger.LogInformation($"Scan start, path: {path}");
+            ScanStateChanged?.Invoke(this, new ScanStateChangedArgs(ScanStates.Scanning));
 
-            _ = Task.Run(() =>
+            try
             {
-                try
+                // 重置状态
+                if (_scanCTS != null)
                 {
-                    // 开始扫描，默认缓存4级文件节点
-                    Stopwatch stopwatch = Stopwatch.StartNew();
-                    // 全盘扫描使用文件大小来估算进度会准确一些
-                    _scanProgressEventer.Start(scanDirInfo);
-                    InnerStartScan(scanDirInfo, _scannedRoot, 5, 1, cts);
-                    _scannedRoot?.SetName(scanDirInfo.FullName);
-                    stopwatch.Stop();
-                    _logger.LogInformation("Scan elapsed:{elapsed}, path:{scanPath}", stopwatch.Elapsed, scanPath);
-                    _scanProgressEventer.Complete(); // 内部会触发事件，不能lock
-
-                    lock (_lock)
-                    {
-                        ScanState = ScanStates.Completed;
-                    }
-
-                    GC.Collect(); // 扫描过程中会产生大量废弃的对象，这里做一次GC可以让内存占用明显减少
-                    RaiseScanStateChanged(ScanStates.Completed);
+                    _scanCTS.Cancel();
+                    _scanCTS.Dispose();
                 }
-                catch (Exception ex)
+                _scanCTS = new CancellationTokenSource();
+                _progressPredictor.Reset();
+                if (ScanResult != null)
                 {
-                    lock (_lock)
-                    {
-                        ScanState = ScanStates.Idle;
-                    }
-                    RaiseScanStateChanged(ScanStates.Idle);
-                    if (ex is OperationCanceledException)
-                        _logger.LogWarning("Scan stopped: path={scanPath}", scanPath);
-                    else
-                        _logger.LogWarning(ex, "InnerStartScan failed: path={scanPath}", scanPath);
+                    // 清理旧数据，有助于内存垃圾回收
+                    await Task.Run(() => ScanResult.CleanSub());
                 }
-            });
+                ScanResult = new FileSysNode();
+                ScanResult.ScanPath = path;
+
+                // 开始扫描
+                var dirInfo = new DirectoryInfo(path);
+                if (!dirInfo.Exists)
+                {
+                    throw new DirectoryNotFoundException($"Not found {path}");
+                }
+                ScanPath = path;
+                var progressPredictorSub = _progressPredictor.CreateRoot();
+                var ct = _scanCTS.Token;
+                Stopwatch stopwatch = Stopwatch.StartNew();
+                await Task.Run(() => ScanInner(dirInfo, ScanResult, progressPredictorSub, ct));
+                _progressPredictor.Complete(); // 触发100%事件
+                GC.Collect(); // 扫描过程中会产生大量废弃的对象，这里做一次GC可以让内存占用明显减少
+                stopwatch.Stop();
+                var resultState = ct.IsCancellationRequested ? ScanStates.Stopped : ScanStates.Completed;
+                _logger.LogInformation($"Scan {resultState}, size: {ByteConverter.Format(ScanResult.Size)}, elapsed: {stopwatch.Elapsed}");
+                lock (_lock)
+                {
+                    ScanState = resultState;
+                }
+                ScanStateChanged?.Invoke(this, new ScanStateChangedArgs(resultState));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Scan failed.");
+                lock (_lock)
+                {
+                    ScanState = ScanStates.ScanFailed;
+                }
+                ScanStateChanged?.Invoke(this, new ScanStateChangedArgs(ScanStates.ScanFailed));
+            }
         }
 
         public void StopScan()
@@ -157,194 +123,112 @@ namespace FattyScanner.Core
             }
         }
 
-        public void CleanScan()
+        public void Expand(FileSysNode node)
         {
-            lock (_lock)
+            // 只有文件夹才能展开
+            if (!node.IsDir) return;
+
+            var path = node.GetFullPath();
+            var dirInfo = new DirectoryInfo(path);
+            if (!dirInfo.Exists)
             {
-                if (ScanState == ScanStates.Scanning) throw new ApplicationException("In scanning state.");
-                if (ScanState == ScanStates.Cleaning) throw new ApplicationException("Already in cleaning state.");
-                if (ScanState == ScanStates.Idle) return;
-
-                ScanState = ScanStates.Idle;
-                ScanPath = null;
-                _scanProgressEventer.Reset();
-                _scannedRoot?.CleanSubs();
-                _scannedRoot = null;
-                _scanCTS?.Dispose();
-                _scanCTS = null;
+                throw new ApplicationException($"Expand directory failed, path not exists: {path}");
             }
-            RaiseScanStateChanged(ScanStates.Idle);
-        }
 
-        public ScannedFileSysInfo? GetTree(string? startPath, int deep, double ignoreSize)
-        {
-            lock (_lock)
+            var fileInfos = dirInfo.GetFiles();
+            foreach (var fileInfo in fileInfos)
             {
-                if (string.IsNullOrEmpty(ScanPath) || _scannedRoot == null) throw new InvalidOperationException("Not scanned.");
+                // 离线文件不在本地磁盘，不需要统计，否则会出发系统自动下载，会很慢
+                if (fileInfo.Attributes.HasFlag(FileAttributes.Offline)) continue;
 
-                ScannedFileSysInfoCompressed? node;
-                string? nodeFullPath = null;
-                if (!string.IsNullOrEmpty(startPath))
-                {
-                    if (!startPath.StartsWith(ScanPath, StringComparison.OrdinalIgnoreCase))
-                        throw new ArgumentException("startPath must be contains ScanPath", nameof(startPath));
-
-                    string nodePath = startPath.Substring(ScanPath.Length).Trim('/', '\\');
-                    if (!string.IsNullOrWhiteSpace(nodePath))
-                        node = GetNodeByPath(_scannedRoot, nodePath);
-                    else
-                        node = _scannedRoot;
-
-                    nodeFullPath = startPath;
-                }
-                else
-                {
-                    node = _scannedRoot;
-                    nodeFullPath = ScanPath;
-                }
-
-                if (node == null)
-                    return null;
-                else
-                    return node.Copy(nodeFullPath, node.GetName()!, deep, node.Size, ignoreSize);
+                var fileLen = fileInfo.Length;
+                var subNode = new FileSysNode();
+                subNode.Name = fileInfo.Name;
+                subNode.IsDir = false;
+                subNode.Size = fileLen;
+                subNode.Parent = node;
+                node.AddSub(subNode);
             }
-        }
-
-        public void OpenFile(string path)
-        {
-        }
-
-        public void OpenFolder(string path)
-        {
-        }
-
-        public List<string> SearchFiles(string key)
-        {
-            throw new NotImplementedException();
         }
         #endregion
 
         #region private methods
-        private void _scanProgressEventer_ProgressChanged(object? sender, ScanProgressArgs e)
+        private void OnScanProgressChanged(object? sender, ScanProgressArgs e)
         {
-            RaiseScanProgressChanged(e);
-        }
-
-        private ScannedFileSysInfoCompressed? GetNodeByPath(ScannedFileSysInfoCompressed root, string nodePath)
-        {
-            string[] parts = nodePath.Trim().TrimEnd('/', '\\').Split('/', '\\');
-            if (parts.Length == 0) return null; // 路径为空
-
-            ScannedFileSysInfoCompressed? parent = root;
-            for (int i = 0; i < parts.Length; i++)
-            {
-                if (parent == null) return null;
-
-                if (parent.Subs != null)
-                    parent = parent.Subs.FirstOrDefault(x => parts[i].Equals(x.GetName(), StringComparison.OrdinalIgnoreCase));
-                else
-                    return null;
-            }
-
-            return parent;
+            ScanProgressChanged?.Invoke(this, e);
         }
 
         /// <summary>
-        /// 扫描文件夹
+        /// 递归扫描文件夹
         /// </summary>
-        /// <param name="dirInfo">当前扫描的文件夹</param>
-        /// <param name="resInfo">用于接收扫描结果，等同与返回值</param>
-        /// <param name="fileFillDeep">大于1表示需要添加文件节点到Subs属性</param>
-        /// <param name="processPart">这个文件夹占总扫描进度的百分比，值在0到1之间</param>
-        /// <param name="cts">用于取消当前扫描</param>
-        /// <returns></returns>
-        private ScannedFileSysInfoCompressed InnerStartScan(DirectoryInfo dirInfo, ScannedFileSysInfoCompressed? resInfo, int fileFillDeep, double processPart, CancellationTokenSource cts)
+        /// <param name="parentDirInfo">要扫描的目标文件夹信息</param>
+        /// <param name="parentNode">用于接收扫描结果的对象</param>
+        /// <param name="progressPredictorSub">用于统计当前文件夹扫描进度的工具</param>
+        /// <param name="cts">用于停止扫描的Token</param>
+        private void ScanInner(DirectoryInfo parentDirInfo, FileSysNode parentNode, ScanProgressPredictorSub progressPredictorSub, CancellationToken ct)
         {
-            if (resInfo == null)
-                resInfo = new ScannedFileSysInfoCompressed();
+            parentNode.Name = parentDirInfo.Name;
+            parentNode.IsDir = true;
 
-            resInfo.IsDir = true;
-            resInfo.IsFileFilled = fileFillDeep > 1;// > 1说明需要添加子文件节点到Subs属性
-            resInfo.SetName(dirInfo.Name);
+            var fileSysInfos = parentDirInfo.GetFileSystemInfos();
+            progressPredictorSub.SetTotalFileSysCount(fileSysInfos.LongLength);
 
-            var itemInfos = dirInfo.GetFileSystemInfos();
-            int subFileFillDeep = fileFillDeep - 1;
-            double subProcessPart = processPart / Math.Max(1, itemInfos.Length);
-            double preProcess = _scanProgressEventer.CurrentProgress;
-            foreach (var itemInfo in itemInfos)
+            foreach (var fileSysInfo in fileSysInfos)
             {
-                if (itemInfo.Attributes.HasFlag(FileAttributes.Directory))
+                try
                 {
-                    // itemInfo是一个文件夹
+                    if (ct.IsCancellationRequested) return;
 
-                    // 忽略连接
-                    if (!string.IsNullOrEmpty(itemInfo.LinkTarget)) continue;
-
-                    try
+                    if (fileSysInfo is DirectoryInfo dirInfo)
                     {
-                        var subInfo = InnerStartScan((itemInfo as DirectoryInfo)!, null, subFileFillDeep, subProcessPart, cts);
-                        if (subInfo.Size > 0)
+                        // 忽略链接，因为链接可能会导致循环引用，也不是真实的文件夹
+                        if (!string.IsNullOrEmpty(dirInfo.LinkTarget)) continue;
+
+                        var subNode = new FileSysNode();
+
+                        try
                         {
-                            // 为了节约内存，过滤大小为0的子文件夹
-                            lock (_lock) // 使用lock防止GetTree调用时多线程同时操作Subs属性
-                            {
-                                resInfo.Size += subInfo.Size;
-                                resInfo.AddSub(subInfo);
-                            }
+                            ScanInner(dirInfo, subNode, progressPredictorSub.CreateSub(), ct);
                         }
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        throw;
-                    }
-                    catch (Exception)
-                    {
-                        // Access denied
-                        // _logger.Warn($"Scan {itemInfo.Name} failed. {ex.Message}");
-                    }
-                }
-                else
-                {
-                    // itemInfo是一个文件
-
-                    // FileAttributes.Offline: The file is offline. The data of the file is not immediately available.
-                    if (!itemInfo.Attributes.HasFlag(FileAttributes.Offline))
-                    {
-                        FileInfo fileInfo = (itemInfo as FileInfo)!;
-                        resInfo.Size += fileInfo.Length;
-
-                        if (resInfo.IsFileFilled && fileInfo.Length > 0)
+                        catch (Exception)
                         {
-                            // 为了节约内存，只取初始状态需要显示给用户看的文件节点，过滤大小为0的节点
-                            var subFileInfo = new ScannedFileSysInfoCompressed { Size = fileInfo.Length };
-                            subFileInfo.SetName(fileInfo.Name);
-                            lock (_lock) // 使用lock防止GetTree调用时多线程同时操作Subs属性
-                            {
-                                resInfo.AddSub(subFileInfo);
-                            }
+                            // Access denied
+                            // _logger.Warn($"Scan {itemInfo.Name} failed. {ex.Message}");
+                            continue;
                         }
 
-                        if (_scanProgressEventer.Mode == ScanProgressModes.Size)
-                            _scanProgressEventer.AddSize(fileInfo.Length);
-                        else
-                            _scanProgressEventer.Add(subProcessPart, fileInfo.Length);
+                        // 如果子文件夹为空就没有统计的必要，同时也为了节约内存空间
+                        if (subNode.Size > 0)
+                        {
+                            subNode.Parent = parentNode;
+                            parentNode.Size += subNode.Size;
+                            parentNode.AddSub(subNode);
+                        }
                     }
-                    else
+                    else if (fileSysInfo is FileInfo fileInfo)
                     {
-                        if (_scanProgressEventer.Mode == ScanProgressModes.FileCount)
-                            _scanProgressEventer.Add(subProcessPart, 0);
+                        // 离线文件不在本地磁盘，不需要统计，否则会出发系统自动下载，会很慢
+                        if (fileInfo.Attributes.HasFlag(FileAttributes.Offline)) continue;
+
+                        var fileLen = fileInfo.Length;
+                        parentNode.Size += fileLen;
+                        progressPredictorSub.AddFileSize(fileLen);
+
+                        // 文件节点太多了太占内存，扫描时不保存文件节点，在用户需要查看时再从系统读取
+                        // var subNode = new FileSysNode();
+                        // subNode.Name = fileInfo.Name;
+                        // subNode.IsDir = false;
+                        // subNode.Size = fileLen;
+                        // subNode.Parent = parentNode;
+                        // parentNode.AddSub(subNode);
                     }
                 }
-
-                // 处理取消
-                cts.Token.ThrowIfCancellationRequested();
-            }// foreach (var itemInfo in itemInfos)
-
-            // 补充没有统计到的链接子文件夹、空子文件夹、无权访问的子文件夹的进度
-            if (_scanProgressEventer.Mode == ScanProgressModes.FileCount && _scanProgressEventer.CurrentProgress - preProcess < processPart)
-                _scanProgressEventer.Add(processPart - _scanProgressEventer.CurrentProgress + preProcess, 0);
-
-            return resInfo;
+                finally
+                {
+                    // 当前文件夹扫描进度加1
+                    progressPredictorSub.AddOne();
+                }
+            } // foreach (var fileSysInfo in fileSysInfos)
         }
         #endregion
     }

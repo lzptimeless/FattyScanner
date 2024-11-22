@@ -1,4 +1,5 @@
-﻿using FattyScanner.ViewModels;
+﻿using FattyScanner.Converters;
+using FattyScanner.ViewModels;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -38,6 +39,19 @@ namespace FattyScanner
         private void MainWindow_Unloaded(object sender, RoutedEventArgs e)
         {
             _viewModel.IsActive = false;
+        }
+
+        private void OnScanResultTreeViewSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            var displayWidthConverter = Resources["FileSysDisplayWidthConverter"] as FileSysDisplayWidthConverter;
+            if (displayWidthConverter != null)
+            {
+                var totalWidth = ScanResultTreeView.ActualWidth;
+                if (!double.IsInfinity(totalWidth) && !double.IsNaN(totalWidth) && totalWidth > 0)
+                {
+                    displayWidthConverter.TotalDisplayWidth = totalWidth;
+                }
+            }
         }
     }
 }

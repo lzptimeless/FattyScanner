@@ -5,10 +5,12 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:FattyScanner"
         xmlns:vm="clr-namespace:FattyScanner.ViewModels"
+        xmlns:converters="clr-namespace:FattyScanner.Converters"
         mc:Ignorable="d"
         d:DataContext="{d:DesignData Type=vm:MainViewModel, IsDesignTimeCreatable=False}"
-        Title="FATTY SCANNER" Height="450" Width="800">
+        Title="FATTY SCANNER" Height="600" Width="1024">
     <Window.Resources>
+        <converters:FileSysDisplayWidthConverter x:Key="FileSysDisplayWidthConverter"/>
         <Style x:Key="ScannedResultTreeViewItemStyle" TargetType="{x:Type TreeViewItem}">
             <Setter Property="OverridesDefaultStyle" Value="True" />
             <Setter Property="HorizontalContentAlignment" Value="{Binding Path=HorizontalContentAlignment, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}" />
@@ -72,26 +74,27 @@
             </Setter>
         </Style>
         <HierarchicalDataTemplate x:Key="ScannedFileSysInfoDataTemplate" 
-                                  DataType="{x:Type vm:ScannedFileSysInfoViewModel}"
-                                  ItemsSource="{Binding Items, Mode=OneWay}">
-            <Border Background="Green" Width="{Binding DisplayWidth, Mode=OneWay}" MinHeight="30" Margin="1">
-                <TextBlock Text="{Binding InnerInfo.Name}" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                <Border.ToolTip>
+                                  DataType="{x:Type vm:FileSysNodeViewModel}"
+                                  ItemsSource="{Binding Subs, Mode=OneWay}">
+            <Grid Width="{Binding DisplayPercentage, Mode=OneWay, Converter={StaticResource FileSysDisplayWidthConverter}}" Height="30">
+                <Rectangle Fill="Green" Margin="1,1,0,1"/>
+                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                <Grid.ToolTip>
                     <ToolTip>
                         <Border BorderThickness="1" BorderBrush="Black" Background="White">
                             <StackPanel Margin="10">
-                                <TextBlock Text="{Binding InnerInfo, Mode=OneWay}"/>
+                                <TextBlock Text="{Binding Name, Mode=OneWay}"/>
                             </StackPanel>
                         </Border>
                     </ToolTip>
-                </Border.ToolTip>
-                <Border.ContextMenu>
+                </Grid.ToolTip>
+                <Grid.ContextMenu>
                     <ContextMenu>
-                        <MenuItem Header="Copy Path" Command="{Binding CopyFullPathCommand, Mode=OneWay}"/>
                         <MenuItem Header="Expand" Command="{Binding ExpandCommand, Mode=OneWay}"/>
+                        <MenuItem Header="Copy Path" Command="{Binding CopyFullPathCommand, Mode=OneWay}"/>
                     </ContextMenu>
-                </Border.ContextMenu>
-            </Border>
+                </Grid.ContextMenu>
+            </Grid>
         </HierarchicalDataTemplate>
     </Window.Resources>
     <Grid Margin="10">
@@ -126,9 +129,10 @@
                 <TextBlock Grid.Column="1" Text="{Binding ScanState, Mode=OneWay}"/>
             </Grid>
         </StackPanel>
-        <TreeView Grid.Row="2" Margin="0,10,0,0" ItemsSource="{Binding Items, Mode=OneWay}"
+        <TreeView Grid.Row="2" x:Name="ScanResultTreeView" Margin="0,10,0,0" ItemsSource="{Binding Subs, Mode=OneWay}"
                   Style="{StaticResource ScannedResultTreeViewStyle}"
-                  ItemTemplate="{StaticResource ScannedFileSysInfoDataTemplate}">
+                  ItemTemplate="{StaticResource ScannedFileSysInfoDataTemplate}"
+                  SizeChanged="OnScanResultTreeViewSizeChanged">
         </TreeView>
     </Grid>
 </Window>
