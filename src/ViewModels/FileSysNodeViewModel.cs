@@ -52,12 +52,22 @@ namespace FattyScanner.ViewModels
             {
                 if (_expandCommand == null)
                 {
-                    _expandCommand = new RelayCommand(Expand);
+                    _expandCommand = new RelayCommand(Expand, CanExpand);
                 }
 
                 return _expandCommand;
             }
         }
+
+        private bool CanExpand()
+        {
+            if (_fileSysNode.IsDir && Subs.Count == 0)
+            {
+                return true;
+            }
+            return false;
+        }
+
         public void Expand()
         {
             // 已经展开过了
@@ -69,7 +79,7 @@ namespace FattyScanner.ViewModels
             {
                 _scanModule.Expand(_fileSysNode);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogWarning(ex, $"Expand failed: {_fileSysNode.GetFullPath()}");
             }
@@ -85,6 +95,7 @@ namespace FattyScanner.ViewModels
                         Subs.Add(new FileSysNodeViewModel(subFileSysNode, _totalSize, _scanModule));
                     }
                 }
+                _expandCommand?.NotifyCanExecuteChanged();
             }
         }
         #endregion
@@ -113,6 +124,43 @@ namespace FattyScanner.ViewModels
             {
                 _logger.LogWarning(ex, "Copying full path failed for {name}.", _fileSysNode.Name);
             }
+        }
+        #endregion
+
+        #region OpenFolderCommand
+        private RelayCommand? _openFolderCommand;
+        public RelayCommand OpenFolderCommand
+        {
+            get
+            {
+                if (_openFolderCommand == null)
+                {
+                    _openFolderCommand = new RelayCommand(OpenFolder, CanOpenFolder);
+                }
+                return _openFolderCommand;
+            }
+        }
+        private void OpenFolder()
+        {
+            var path = _fileSysNode.GetFullPath();
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = path,
+                    UseShellExecute = true,
+                    Verb = "open"
+                };
+                System.Diagnostics.Process.Start(psi);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, $"Open folder failed: {path}");
+            }
+        }
+        private bool CanOpenFolder()
+        {
+            return _fileSysNode.IsDir;
         }
         #endregion
         #endregion

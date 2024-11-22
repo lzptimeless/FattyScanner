@@ -11,7 +11,7 @@
         Title="FATTY SCANNER" Height="600" Width="1024">
     <Window.Resources>
         <converters:FileSysDisplayWidthConverter x:Key="FileSysDisplayWidthConverter"/>
-        <Style x:Key="ScannedResultTreeViewItemStyle" TargetType="{x:Type TreeViewItem}">
+        <Style x:Key="ScanResultTreeViewItemStyle" TargetType="{x:Type TreeViewItem}">
             <Setter Property="OverridesDefaultStyle" Value="True" />
             <Setter Property="HorizontalContentAlignment" Value="{Binding Path=HorizontalContentAlignment, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}" />
             <Setter Property="VerticalContentAlignment" Value="{Binding Path=VerticalContentAlignment, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}" />
@@ -49,11 +49,11 @@
                 </Setter.Value>
             </Setter>
         </Style>
-        <Style x:Key="ScannedResultTreeViewStyle" TargetType="{x:Type TreeView}">
+        <Style x:Key="ScanResultTreeViewStyle" TargetType="{x:Type TreeView}">
             <Setter Property="OverridesDefaultStyle" Value="True" />
             <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
             <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
-            <Setter Property="ItemContainerStyle" Value="{StaticResource ScannedResultTreeViewItemStyle}"/>
+            <Setter Property="ItemContainerStyle" Value="{StaticResource ScanResultTreeViewItemStyle}"/>
             <Setter Property="ItemsPanel">
                 <Setter.Value>
                     <ItemsPanelTemplate>
@@ -73,25 +73,31 @@
                 </Setter.Value>
             </Setter>
         </Style>
-        <HierarchicalDataTemplate x:Key="ScannedFileSysInfoDataTemplate" 
+        <HierarchicalDataTemplate x:Key="FileSysDataTemplate" 
                                   DataType="{x:Type vm:FileSysNodeViewModel}"
                                   ItemsSource="{Binding Subs, Mode=OneWay}">
-            <Grid Width="{Binding DisplayPercentage, Mode=OneWay, Converter={StaticResource FileSysDisplayWidthConverter}}" Height="30">
-                <Rectangle Fill="Green" Margin="1,1,0,1"/>
-                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+            <Grid Width="{Binding DisplayPercentage, Mode=OneWay, Converter={StaticResource FileSysDisplayWidthConverter}}" Height="30"
+                  ToolTipService.InitialShowDelay="0"
+                  ToolTipService.ShowDuration="2147483647">
+                <Rectangle Fill="#0B3C5D" Margin="1,1,0,0"/>
+                <TextBlock VerticalAlignment="Center" HorizontalAlignment="Center"
+                           Foreground="White">
+                    <Run Text="{Binding Name, Mode=OneWay}"/>
+                    <Run Text="{Binding Size, Mode=OneWay, Converter={StaticResource ByteFormatConverter}}"/>
+                </TextBlock>
                 <Grid.ToolTip>
                     <ToolTip>
-                        <Border BorderThickness="1" BorderBrush="Black" Background="White">
-                            <StackPanel Margin="10">
-                                <TextBlock Text="{Binding Name, Mode=OneWay}"/>
-                            </StackPanel>
-                        </Border>
+                        <TextBlock>
+                            <Run Text="{Binding Name, Mode=OneWay}"/>
+                            <Run Text="{Binding Size, Mode=OneWay, Converter={StaticResource ByteFormatConverter}}"/>
+                        </TextBlock>
                     </ToolTip>
                 </Grid.ToolTip>
                 <Grid.ContextMenu>
                     <ContextMenu>
                         <MenuItem Header="Expand" Command="{Binding ExpandCommand, Mode=OneWay}"/>
                         <MenuItem Header="Copy Path" Command="{Binding CopyFullPathCommand, Mode=OneWay}"/>
+                        <MenuItem Header="Open Folder" Command="{Binding OpenFolderCommand, Mode=OneWay}"/>
                     </ContextMenu>
                 </Grid.ContextMenu>
             </Grid>
@@ -102,21 +108,25 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <Grid>
+        <!--Top tools bar-->
+        <Grid Height="25">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <Button MinWidth="90" Content="FOLDER" Command="{Binding BrowseScanPathCommand, Mode=OneWay}"/>
+            <Button MinWidth="90" Content="SELECT PATH" Command="{Binding BrowseScanPathCommand, Mode=OneWay}"/>
             <TextBox Grid.Column="1" Margin="5,0" Text="{Binding ScanPath, Mode=TwoWay}"/>
             <Button Grid.Column="2" MinWidth="90" Content="SCAN" Command="{Binding ScanCommand, Mode=OneWay}"/>
             <Button Grid.Column="3" MinWidth="90" Margin="5,0,0,0" Content="STOP" Command="{Binding StopCommand, Mode=OneWay}"/>
         </Grid>
+        <!--Top status bar-->
         <StackPanel Grid.Row="1" Margin="0,5,0,0">
-            <ProgressBar Height="5" Minimum="0" Maximum="100"  Value="{Binding ScanProgressValue, Mode=OneWay}"/>
+            <ProgressBar Height="5" Minimum="0" Maximum="100"  Value="{Binding ScanProgressValue, Mode=OneWay}"
+                         Foreground="#328CC1"/>
             <Grid Margin="0,5,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition/>
@@ -129,10 +139,26 @@
                 <TextBlock Grid.Column="1" Text="{Binding ScanState, Mode=OneWay}"/>
             </Grid>
         </StackPanel>
+        <!--Scan result-->
         <TreeView Grid.Row="2" x:Name="ScanResultTreeView" Margin="0,10,0,0" ItemsSource="{Binding Subs, Mode=OneWay}"
-                  Style="{StaticResource ScannedResultTreeViewStyle}"
-                  ItemTemplate="{StaticResource ScannedFileSysInfoDataTemplate}"
+                  Style="{StaticResource ScanResultTreeViewStyle}"
+                  ItemTemplate="{StaticResource FileSysDataTemplate}"
                   SizeChanged="OnScanResultTreeViewSizeChanged">
         </TreeView>
+        <!--Botton status bar-->
+        <StackPanel Grid.Row="3" Height="25" Orientation="Horizontal">
+            <TextBlock VerticalAlignment="Center" Width="100">
+                <Run Text="CPU:"/>
+                <Run Text="{Binding CpuUsage, Mode=OneWay}"/>
+            </TextBlock>
+            <TextBlock VerticalAlignment="Center" Width="100">
+                <Run Text="RAM:"/>
+                <Run Text="{Binding RamUsage, Mode=OneWay, Converter={StaticResource ByteFormatConverter}}"/>
+            </TextBlock>
+            <TextBlock VerticalAlignment="Center" Width="100">
+                <Run Text="DISK:"/>
+                <Run Text="{Binding DiskUsage, Mode=OneWay, Converter={StaticResource ByteFormatConverter}}"/>
+            </TextBlock>
+        </StackPanel>
     </Grid>
 </Window>

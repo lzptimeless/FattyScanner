@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using FattyScanner.Common;
 using FattyScanner.Core;
 using FattyScanner.Core.Models;
 using FattyScanner.Logger;
@@ -8,6 +9,7 @@ using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -19,12 +21,21 @@ namespace FattyScanner.ViewModels
         #region fields
         private readonly ILogger _logger;
         private readonly IScanModule _scanModule;
+        private readonly PerformanceCounter _cpuCounter;
+        private readonly PerformanceCounter _diskCounter;
+        private readonly Process _currentProcess;
+        private readonly Timer _performanceTimer;
         #endregion
 
         public MainViewModel()
         {
             _logger = AppLogger.CreateLogger(typeof(MainViewModel));
             _scanModule = new ScanModule(AppLogger.Factory);
+
+            _currentProcess = Process.GetCurrentProcess();
+            _cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
+            _diskCounter = new PerformanceCounter("LogicalDisk", "Disk Read Bytes/sec", "_Total");
+            _performanceTimer = new Timer(OnUpdatePerformanceTimer, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
         }
 
         #region properties
@@ -60,6 +71,27 @@ namespace FattyScanner.ViewModels
         public ObservableCollection<FileSysNodeViewModel>? Subs
         {
             get { return _root?.Subs; }
+        }
+
+        public double _cpuUsage;
+        public double CpuUsage
+        {
+            get { return _cpuUsage; }
+            set { SetProperty(ref _cpuUsage, value); }
+        }
+
+        public long _ramUsage;
+        public long RamUsage
+        {
+            get { return _ramUsage; }
+            set { SetProperty(ref _ramUsage, value); }
+        }
+
+        public long _diskUsage;
+        public long DiskUsage
+        {
+            get { return _diskUsage; }
+            set { SetProperty(ref _diskUsage, value); }
         }
         #endregion
 
@@ -194,6 +226,28 @@ namespace FattyScanner.ViewModels
                 ScanProgressValue = e.ProgressValue * 100;
                 ScannedSize = e.ScannedSize;
             });
+        }
+
+        private void OnUpdatePerformanceTimer(object? state)
+        {
+            App.Current.Dispatcher.BeginInvoke(() =>
+            {
+                UpdatePerformance();
+            });
+        }
+
+        private void UpdatePerformance()
+        {
+            CpuUsage = PerformanceHelper.GetCpuUsage(_currentProcess.Handle);
+            try
+            {
+                RamUsage = PerformanceHelper.GetRamUsage(_currentProcess.Handle);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogWarning(ex, "Get ram usage failed.");
+            }
+            DiskUsage = (long)_diskCounter.NextValue();
         }
         #endregion
     }
