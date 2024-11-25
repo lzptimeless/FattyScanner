@@ -98,7 +98,7 @@ namespace FattyScanner.Common
                 throw new Win32Exception();
             }
 
-            return pmc.WorkingSetSize;
+            return pmc.PrivateUsage;
         }
         #endregion
 
