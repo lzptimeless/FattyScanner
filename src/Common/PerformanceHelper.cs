@@ -84,9 +84,9 @@ namespace FattyScanner.Common
             public ulong QuotaPagedPoolUsage;     // 分页池使用量
             public ulong QuotaPeakNonPagedPoolUsage; // 峰值非分页池使用量
             public ulong QuotaNonPagedPoolUsage;  // 非分页池使用量
-            public ulong PagefileUsage;           // 页面文件使用量
+            public ulong PagefileUsage;           // 页面文件使用量，等于任务管理器中的提交大小
             public ulong PeakPagefileUsage;       // 页面文件峰值使用量
-            public ulong PrivateUsage;            // 私有字节数
+            public ulong PrivateUsage;            // 私有字节数，等于任务管理器中的提交大小
         }
 
         public static ulong GetRamUsage(IntPtr hProcess)

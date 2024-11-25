@@ -199,7 +199,7 @@ namespace FattyScanner.ViewModels
 
         private void OnScanStateChanged(object? sender, Core.Events.ScanStateChangedArgs e)
         {
-            App.Current.Dispatcher.BeginInvoke(() =>
+            App.Current.Dispatcher?.BeginInvoke(() =>
             {
                 ScanState = e.State;
                 if (e.State == ScanStates.Completed || e.State == ScanStates.Stopped)
@@ -217,7 +217,7 @@ namespace FattyScanner.ViewModels
 
         private void OnScanProgressChanged(object? sender, Core.Events.ScanProgressArgs e)
         {
-            App.Current.Dispatcher.BeginInvoke(() =>
+            App.Current.Dispatcher?.BeginInvoke(() =>
             {
                 ScanProgressValue = e.ProgressValue * 100;
                 ScannedSize = e.ScannedSize;
@@ -226,7 +226,7 @@ namespace FattyScanner.ViewModels
 
         private void OnUpdatePerformanceTimer(object? state)
         {
-            App.Current.Dispatcher.BeginInvoke(() =>
+            App.Current.Dispatcher?.BeginInvoke(() =>
             {
                 UpdatePerformance();
             });
