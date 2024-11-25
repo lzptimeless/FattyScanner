@@ -63,41 +63,76 @@ namespace FattyScanner.Common
             _preKernelTime = kernelTime;
             _preUserTime = userTime;
 
-            return Math.Round(cpuUsage, 2);
+            return Math.Round(cpuUsage, 4);
         }
         #endregion
 
         #region RAM usage
         // P/Invoke declaration for K32GetProcessMemoryInfo function
         [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern bool K32GetProcessMemoryInfo(IntPtr hProcess, out PROCESS_MEMORY_COUNTERS counters, uint size);
+        static extern bool K32GetProcessMemoryInfo(IntPtr hProcess, out PROCESS_MEMORY_COUNTERS_EX counters, uint size);
 
         // Memory counters structure
         [StructLayout(LayoutKind.Sequential)]
-        public struct PROCESS_MEMORY_COUNTERS
+        struct PROCESS_MEMORY_COUNTERS_EX
         {
-            public uint cb;
-            public uint PageFaultCount;
-            public uint PeakWorkingSetSize;
-            public uint WorkingSetSize;
-            public uint QuotaPeakPagedPoolUsage;
-            public uint QuotaPagedPoolUsage;
-            public uint QuotaPeakNonPagedPoolUsage;
-            public uint QuotaNonPagedPoolUsage;
-            public uint PagefileUsage;
-            public uint PeakPagefileUsage;
+            public uint cb;                       // 结构体大小
+            public uint PageFaultCount;           // 页面错误数
+            public ulong PeakWorkingSetSize;      // 峰值工作集大小
+            public ulong WorkingSetSize;          // 当前工作集大小
+            public ulong QuotaPeakPagedPoolUsage; // 峰值分页池使用量
+            public ulong QuotaPagedPoolUsage;     // 分页池使用量
+            public ulong QuotaPeakNonPagedPoolUsage; // 峰值非分页池使用量
+            public ulong QuotaNonPagedPoolUsage;  // 非分页池使用量
+            public ulong PagefileUsage;           // 页面文件使用量
+            public ulong PeakPagefileUsage;       // 页面文件峰值使用量
+            public ulong PrivateUsage;            // 私有字节数
         }
 
-        public static long GetRamUsage(IntPtr hProcess)
+        public static ulong GetRamUsage(IntPtr hProcess)
         {
-            PROCESS_MEMORY_COUNTERS pmc;
-            pmc.cb = (uint)Marshal.SizeOf(typeof(PROCESS_MEMORY_COUNTERS));
+            PROCESS_MEMORY_COUNTERS_EX pmc;
+            pmc.cb = (uint)Marshal.SizeOf(typeof(PROCESS_MEMORY_COUNTERS_EX));
             if (!K32GetProcessMemoryInfo(hProcess, out pmc, pmc.cb))
             {
                 throw new Win32Exception();
             }
 
             return pmc.WorkingSetSize;
+        }
+        #endregion
+
+        #region Disk uspage
+        [StructLayout(LayoutKind.Sequential)]
+        struct IO_COUNTERS
+        {
+            public ulong ReadOperationCount;
+            public ulong WriteOperationCount;
+            public ulong OtherOperationCount;
+            public ulong ReadTransferCount;
+            public ulong WriteTransferCount;
+            public ulong OtherTransferCount;
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern bool GetProcessIoCounters(IntPtr hProcess, out IO_COUNTERS ioCounters);
+
+        static IO_COUNTERS _preIoCounters;
+
+        public static ulong GetDiskUsage(IntPtr hProcess)
+        {
+            IO_COUNTERS ioCounters;
+            if (!GetProcessIoCounters(hProcess, out ioCounters))
+            {
+                throw new Win32Exception();
+            }
+
+            ulong readTransferCount = ioCounters.ReadTransferCount;
+            ulong writeTransferCount = ioCounters.WriteTransferCount;
+            ulong totalTransferCount = readTransferCount + writeTransferCount;
+            ulong diskUsage = totalTransferCount - _preIoCounters.ReadTransferCount - _preIoCounters.WriteTransferCount;
+            _preIoCounters = ioCounters;
+            return diskUsage;
         }
         #endregion
     }

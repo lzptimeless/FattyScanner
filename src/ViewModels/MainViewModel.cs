@@ -21,8 +21,6 @@ namespace FattyScanner.ViewModels
         #region fields
         private readonly ILogger _logger;
         private readonly IScanModule _scanModule;
-        private readonly PerformanceCounter _cpuCounter;
-        private readonly PerformanceCounter _diskCounter;
         private readonly Process _currentProcess;
         private readonly Timer _performanceTimer;
         #endregion
@@ -33,8 +31,6 @@ namespace FattyScanner.ViewModels
             _scanModule = new ScanModule(AppLogger.Factory);
 
             _currentProcess = Process.GetCurrentProcess();
-            _cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
-            _diskCounter = new PerformanceCounter("LogicalDisk", "Disk Read Bytes/sec", "_Total");
             _performanceTimer = new Timer(OnUpdatePerformanceTimer, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
         }
 
@@ -53,8 +49,8 @@ namespace FattyScanner.ViewModels
             set { SetProperty(ref _scanProgressValue, value); }
         }
 
-        private long _scannedSize;
-        public long ScannedSize
+        private ulong _scannedSize;
+        public ulong ScannedSize
         {
             get { return _scannedSize; }
             set { SetProperty(ref _scannedSize, value); }
@@ -80,15 +76,15 @@ namespace FattyScanner.ViewModels
             set { SetProperty(ref _cpuUsage, value); }
         }
 
-        public long _ramUsage;
-        public long RamUsage
+        public ulong _ramUsage;
+        public ulong RamUsage
         {
             get { return _ramUsage; }
             set { SetProperty(ref _ramUsage, value); }
         }
 
-        public long _diskUsage;
-        public long DiskUsage
+        public ulong _diskUsage;
+        public ulong DiskUsage
         {
             get { return _diskUsage; }
             set { SetProperty(ref _diskUsage, value); }
@@ -238,7 +234,15 @@ namespace FattyScanner.ViewModels
 
         private void UpdatePerformance()
         {
-            CpuUsage = PerformanceHelper.GetCpuUsage(_currentProcess.Handle);
+            try
+            {
+                CpuUsage = PerformanceHelper.GetCpuUsage(_currentProcess.Handle) * 100;
+            }
+            catch(Exception ex)
+            {
+                _logger.LogWarning(ex, "Get cpu usage failed.");
+            }
+
             try
             {
                 RamUsage = PerformanceHelper.GetRamUsage(_currentProcess.Handle);
@@ -247,7 +251,15 @@ namespace FattyScanner.ViewModels
             {
                 _logger.LogWarning(ex, "Get ram usage failed.");
             }
-            DiskUsage = (long)_diskCounter.NextValue();
+
+            try
+            {
+                DiskUsage = PerformanceHelper.GetDiskUsage(_currentProcess.Handle);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Get disk usage failed.");
+            }
         }
         #endregion
     }

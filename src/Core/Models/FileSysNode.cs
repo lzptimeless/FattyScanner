@@ -22,7 +22,7 @@ namespace FattyScanner.Core.Models
         /// <summary>
         /// 文件或文件夹大小，单位字节
         /// </summary>
-        public long Size { get; set; }
+        public ulong Size { get; set; }
         /// <summary>
         /// 用户扫描时指定的路径，只有根节点有值
         /// </summary>

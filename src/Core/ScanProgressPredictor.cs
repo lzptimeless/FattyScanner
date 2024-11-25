@@ -18,8 +18,8 @@ namespace FattyScanner.Core
         private const double MinProgressChangeValue = 0.001;
 
         private ScanProgressPredictorSub? _root;
-        private long _totalSize;
-        private long _preEventTotalSize;
+        private ulong _totalSize;
+        private ulong _preEventTotalSize;
         private long _preEventTime;
         private double _preEventProgressValue;
         private bool _isCompleted;
@@ -100,7 +100,7 @@ namespace FattyScanner.Core
             ScanProgressChanged?.Invoke(this, new ScanProgressArgs(currentProgressValue, _totalSize));
         }
 
-        private void OnSizeAdded(long sizeIncrement)
+        private void OnSizeAdded(ulong sizeIncrement)
         {
             _totalSize += sizeIncrement;
         }
@@ -124,7 +124,7 @@ namespace FattyScanner.Core
         /// <summary>
         /// 总扫描大小增加的通知函数
         /// </summary>
-        private readonly Action<long> _addSizeAction;
+        private readonly Action<ulong> _addSizeAction;
         /// <summary>
         /// 当前文件夹下文件与子文件夹的个数
         /// </summary>
@@ -145,7 +145,7 @@ namespace FattyScanner.Core
         /// <param name="totalProgressValue">当前文件夹在总扫描进度中所代表的数值</param>
         /// <param name="progressChangedAction">扫描进度改变时的通知函数</param>
         /// <param name="addSizeAction">总扫描大小增加的通知函数</param>
-        public ScanProgressPredictorSub(double totalProgressValue, Action progressChangedAction, Action<long> addSizeAction)
+        public ScanProgressPredictorSub(double totalProgressValue, Action progressChangedAction, Action<ulong> addSizeAction)
         {
             _totalProgressValue = totalProgressValue;
             _progressChangedAction = progressChangedAction;
@@ -191,7 +191,7 @@ namespace FattyScanner.Core
         /// 增加扫描结果的总大小
         /// </summary>
         /// <param name="sizeIncrement">增加的文件大小</param>
-        public void AddFileSize(long sizeIncrement)
+        public void AddFileSize(ulong sizeIncrement)
         {
             _addSizeAction(sizeIncrement);
         }

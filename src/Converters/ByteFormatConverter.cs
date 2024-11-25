@@ -15,7 +15,7 @@ namespace FattyScanner.Converters
         {
             if (value != null && IsNumber(value))
             {
-                return ByteConverter.Format((long)value);
+                return ByteConverter.Format((ulong)value);
             }
 
             return string.Empty;

@@ -12,7 +12,7 @@ namespace FattyScanner.Core.Events
     /// </summary>
     public class ScanProgressArgs : EventArgs
     {
-        public ScanProgressArgs(double progress, long scannedSize)
+        public ScanProgressArgs(double progress, ulong scannedSize)
         {
             ProgressValue = progress;
             ScannedSize = scannedSize;
@@ -22,6 +22,6 @@ namespace FattyScanner.Core.Events
         /// 当前扫描进度，0到1的浮点数
         /// </summary>
         public double ProgressValue { get; private set; }
-        public long ScannedSize { get; private set; }
+        public ulong ScannedSize { get; private set; }
     }
 }

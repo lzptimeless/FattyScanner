@@ -19,11 +19,11 @@ namespace FattyScanner.ViewModels
         #region fields
         private readonly FileSysNode _fileSysNode;
         private readonly ILogger _logger;
-        private readonly long _totalSize;
+        private readonly ulong _totalSize;
         private readonly IScanModule _scanModule;
         #endregion
 
-        public FileSysNodeViewModel(FileSysNode fileSysNode, long totalSize, IScanModule scanModule)
+        public FileSysNodeViewModel(FileSysNode fileSysNode, ulong totalSize, IScanModule scanModule)
         {
             if (totalSize <= 0)
                 throw new ArgumentOutOfRangeException(nameof(totalSize), "totalSize must > 0");
@@ -37,7 +37,7 @@ namespace FattyScanner.ViewModels
 
         #region properties
         public string? Name => _fileSysNode.Name;
-        public long Size => _fileSysNode.Size;
+        public ulong Size => _fileSysNode.Size;
         public bool IsDir => _fileSysNode.IsDir;
         public double DisplayPercentage { get; private set; }
         public ObservableCollection<FileSysNodeViewModel> Subs { get; private set; } = new ObservableCollection<FileSysNodeViewModel>();

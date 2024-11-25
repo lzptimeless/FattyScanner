@@ -13,9 +13,8 @@ namespace FattyScanner.Core.Models
     {
         private static readonly string[] FormatSuffixes = { "bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB" };
 
-        public static string Format(long value)
+        public static string Format(ulong value)
         {
-            if (value < 0) { return "-" + Format(-value); }
             if (value == 0) { return $"0 {FormatSuffixes[0]}"; }
 
             int mag = (int)Math.Log(value, 1024);

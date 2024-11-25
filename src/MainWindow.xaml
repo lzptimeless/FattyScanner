@@ -119,7 +119,8 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <Button MinWidth="90" Content="SELECT PATH" Command="{Binding BrowseScanPathCommand, Mode=OneWay}"/>
-            <TextBox Grid.Column="1" Margin="5,0" Text="{Binding ScanPath, Mode=TwoWay}"/>
+            <TextBox Grid.Column="1" Margin="5,0" Text="{Binding ScanPath, Mode=TwoWay}"
+                     VerticalContentAlignment="Center"/>
             <Button Grid.Column="2" MinWidth="90" Content="SCAN" Command="{Binding ScanCommand, Mode=OneWay}"/>
             <Button Grid.Column="3" MinWidth="90" Margin="5,0,0,0" Content="STOP" Command="{Binding StopCommand, Mode=OneWay}"/>
         </Grid>
@@ -149,7 +150,7 @@
         <StackPanel Grid.Row="3" Height="25" Orientation="Horizontal">
             <TextBlock VerticalAlignment="Center" Width="100">
                 <Run Text="CPU:"/>
-                <Run Text="{Binding CpuUsage, Mode=OneWay}"/>
+                <Run Text="{Binding CpuUsage, Mode=OneWay, StringFormat={}{0}%}"/>
             </TextBlock>
             <TextBlock VerticalAlignment="Center" Width="100">
                 <Run Text="RAM:"/>

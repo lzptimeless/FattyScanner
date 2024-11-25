@@ -145,7 +145,7 @@ namespace FattyScanner.Core
                 var subNode = new FileSysNode();
                 subNode.Name = fileInfo.Name;
                 subNode.IsDir = false;
-                subNode.Size = fileLen;
+                subNode.Size = (ulong)fileLen;
                 subNode.Parent = node;
                 node.AddSub(subNode);
             }
@@ -211,14 +211,14 @@ namespace FattyScanner.Core
                         if (fileInfo.Attributes.HasFlag(FileAttributes.Offline)) continue;
 
                         var fileLen = fileInfo.Length;
-                        parentNode.Size += fileLen;
-                        progressPredictorSub.AddFileSize(fileLen);
+                        parentNode.Size += (ulong)fileLen;
+                        progressPredictorSub.AddFileSize((ulong)fileLen);
 
                         // 文件节点太多了太占内存，扫描时不保存文件节点，在用户需要查看时再从系统读取
                         // var subNode = new FileSysNode();
                         // subNode.Name = fileInfo.Name;
                         // subNode.IsDir = false;
-                        // subNode.Size = fileLen;
+                        // subNode.Size = (ulong)fileLen;
                         // subNode.Parent = parentNode;
                         // parentNode.AddSub(subNode);
                     }
