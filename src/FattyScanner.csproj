@@ -8,7 +8,6 @@
     <UseWPF>true</UseWPF>
     <ApplicationIcon>AppIcon.ico</ApplicationIcon>
     <Authors>lzp</Authors>
-    <Company>Razer</Company>
     <Version>1.0.1</Version>
   </PropertyGroup>
 
